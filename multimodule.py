@@ -418,7 +418,7 @@ def get_docstring(data):
 	return r.match(data)
 
 class clang_compiler:
-	# My attempt to make some basic ability to compile with clang.
+	# My attempt to make some basic ability to compile with the windows port of clang, mostly.
 	__slots__=("exe", "exe_ext", "lib_dirs", "include_dirs")
 	def __init__(self):
 		import shutil, sysconfig
@@ -452,9 +452,10 @@ class clang_compiler:
 		for i in self.lib_dirs: libs+="-L"+i+" "
 		res=subprocess.run(f"{self.exe} {libs} -o{output_name} -shared {objs} {extra_postargs}", shell=True)
 		if res.returncode!=0: raise Exception("Failed to compile object files"+objs)
+
 def fix_module(data, name):
 	#data=fix_docstring(data)
-	data=[i.expandtabs(1) for i in data]
+	data=list(i.expandtabs(1) for i in data)
 	#data=fix_exceptions(data)
 	data=fix_future(data)
 # data=fix_relative(data)
@@ -488,12 +489,14 @@ def find_files(location, add_folders=False, add_files=True, extensions=("*",), m
 	if multiple_lists==False: return results
 	else: return files, folders
 
-def main(main_module: "The package or module name of the main module, which is the module which will be imported first by the user", *files: "A space seperated list of module or package names minus the extension that will be searched for in the current directory and on sys.path", package: "Specify weather to import from the main module, or to import modules globally"=False, method: "Select which method to use to build the Cython extension"="1", encoding: "The text encoding to use for the files, default is UTF-8"="UTF-8", import_all: "Cause the extension, when imported, to load all the contained modules"=False, name: "The name of the main module, don't set to use the default"=None, show_modules: "Set weather the extension module will have a list attribute called modules which lists the modules contained in it, default  is False"=False, exe: "Weather to make an exe that starts the main module when launched and can still load other modules. WARNING! Only works for method 2! "=False, protect_function: "The name of a function in the main module that is called whenever a module is about to be imported. If the function returns False, the importing is stopped and if it returns True, it is allowed to continue"=None, compiler_options: "Comma seperated list of compiler options"='', no_cython_processes: "You seem to need to use this option when setting custom compiler directives. This option compiles your Cython code using only the current process. This is slower, but otherwise the compiler directives don't carry across processes."=False, keep_temp: "Set this option to stop the build_temp from being deleted"=False, build_temp: "Set where the build_temp directory should be put"='', output: "Set where the resulting Python extension module is placed, leave empty to use the default settings"='', compiler_directives: "A comma seperated set of compiler directives to pass to Cython"='', cinclude: "A list of comma seperated directory names that will be used to search for extra required C files"='', clib: "A comma seperated list of C libraries to link with"='', prompt: "Weather to prompt for the removal of temporary dirs or files, default is True"=True, init_code: "Allows you to insert extra code by specifying a filename that you need run before the multimodule importer runs. Warning! This code will not have access to the embedded modules, but it will still be embedded. If you want to store a docstring for the main module, you can put it in the embedded code"=None, verbose: "control the verbosity level, the lower the quieter, default is 2."=2, exclude_unused: "Tries to determin all the imported modules and removes any extra modules from the extension that aren't used by the rest. Default is False."=False, exclude_modules: "A comma seperated list of module names to include."="", ccompiler: "The compiler to use to compile the code. Any uses distutils.ccompiler.new_compiler, and other names expect a class with the same name as the compiler to be available"="any", extra_compile_args: "Extra args to pass on to the c compiler"=[], extra_link_args: "Extra args to pass onto the linker"=[]):
+def main(main_module: "The package or module name of the main module, which is the module which will be imported first by the user", *files: "A space seperated list of module or package names minus the extension that will be searched for in the current directory and on sys.path", package: "Specify weather to import from the main module, or to import modules globally"=False, method: "Select which method to use to build the Cython extension"="1", encoding: "The text encoding to use for the files, default is UTF-8"="UTF-8", import_all: "Cause the extension, when imported, to load all the contained modules"=False, name: "The name of the main module, don't set to use the default"=None, show_modules: "Set weather the extension module will have a list attribute called modules which lists the modules contained in it, default  is False"=False, exe: "Weather to make an exe that starts the main module when launched and can still load other modules. WARNING! Only works for method 2! "=False, protect_function: "The name of a function in the main module that is called whenever a module is about to be imported. If the function returns False, the importing is stopped and if it returns True, it is allowed to continue"=None, compiler_options: "Comma seperated list of compiler options"='', no_cython_processes: "You seem to need to use this option when setting custom compiler directives. This option compiles your Cython code using only the current process. This is slower, but otherwise the compiler directives don't carry across processes."=False, keep_temp: "Set this option to stop the build_temp from being deleted"=False, build_temp: "Set where the build_temp directory should be put"='', output: "Set where the resulting Python extension module is placed, leave empty to use the default settings"='', compiler_directives: "A comma seperated set of compiler directives to pass to Cython"='', cinclude: "A list of comma seperated directory names that will be used to search for extra required C files"='', clib: "A comma seperated list of C libraries to link with"='', prompt: "Weather to prompt for the removal of temporary dirs or files, default is True"=True, init_code: "Allows you to insert extra code by specifying a filename that you need run before the multimodule importer runs. Warning! This code will not have access to the embedded modules, but it will still be embedded. If you want to store a docstring for the main module, you can put it in the embedded code"=None, verbose: "control the verbosity level, the lower the quieter, default is 2."=2, exclude_unused: "Tries to determin all the imported modules and removes any extra modules from the extension that aren't used by the rest. Default is False."=False, exclude_modules: "A comma seperated list of module names to include."="", ccompiler: "The compiler to use to compile the code. Any uses distutils.ccompiler.new_compiler,."="", extra_compile_args: "Extra args to pass on to the c compiler"="", extra_link_args: "Extra args to pass onto the linker"=""):
 	__doc__
 	global cythonize, glob, path, CythonOptions, ModuleSpec, begin, os, sys, random, traceback, tempfile, importlib, chardet, multiprocessing, ext, tempdir
 	from Cython.Build import cythonize
 	from Cython.Compiler import Options as CythonOptions
 	from distutils.ccompiler import new_compiler
+	from distutils.command.build_ext import customize_compiler, build_ext
+	from distutils.dist import Distribution
 	from importlib.machinery import ModuleSpec
 	from glob import glob
 	import begin, os, sys, random, traceback, tempfile, importlib, sysconfig
@@ -516,7 +519,7 @@ def main(main_module: "The package or module name of the main module, which is t
 	say_something_important=say_something_interesting=say_anything=print
 	try: verbose=int(verbose)
 	except ValueError: die("Invalid value for verbose, expected int but got ", verbose)
-	if verbose<0 or verbose>2: die("Verbose is not in the expected range (0,2)")
+	if verbose<0 or verbose>3: die("Verbose is not in the expected range (0,2)")
 	if verbose<2: say_anything=say_nothing
 	if verbose<1: say_something_interesting=say_nothing
 	main_module_name=get_name(main_module)
@@ -527,7 +530,8 @@ def main(main_module: "The package or module name of the main module, which is t
 	f=locate_modules(files, ext=ext)
 	main_files=locate_modules(main_module, ext=ext)
 	if len(main_files)==0: die("Couldn't find main module")
-
+	extra_compile_args=extra_compile_args.split(" ")
+	extra_link_args=extra_link_args.split(" ")
 	if not build_temp:
 		build_temp=path.join(tempfile.gettempdir(), "multimodule_build_temp"+get_random_letters(5))
 	tempdir=build_temp # Remember the temp dir so we can clean it up if the app crashes.
@@ -536,17 +540,10 @@ def main(main_module: "The package or module name of the main module, which is t
 		if res: die("Exiting")
 		else: clean_temp(build_temp)
 	os.mkdir(build_temp)
-	if ccompiler=="any": com=new_compiler()
-	elif ccompiler=="clang": com=clang_compiler()
-	com.add_include_dir(sysconfig.get_config_var("INCLUDEPY"))
-	com.add_library_dir(path.join(sys.exec_prefix, "libs"))
-	add_include_locations(cinclude, com.add_include_dir)
-	add_include_locations(clib, com.add_library_dir)
 	output_ext=".pyd"
-	if not sys.platform.startswith("win"): output_ext=".so"
+	if not sys.platform=="win32": output_ext=".so"
 	if not output:
-		if exe==False: output=main_module_name+output_ext
-		else: output=com.executable_filename(main_module_name)
+		output=main_module_name+output_ext
 		output=path.abspath(output)
 	if path.exists(output):
 		for i in sys.modules.values():
@@ -652,6 +649,9 @@ def main(main_module: "The package or module name of the main module, which is t
 		for i in names: p.write("import "+i+"\n")
 
 	p.close()
+	data=open_file(main_location, encoding="UTF-8")
+	data=fix_module(data, main_module_name)
+	with open(main_location, mode="w", encoding="UTF-8") as p: p.writelines(data)
 	say_anything("Compiling...")
 	cythonize_files=[]
 	mods.append(mod(name=main_module_name, shortname=main_module_name, file=main_location, pyfile=main_location))
@@ -681,7 +681,7 @@ def main(main_module: "The package or module name of the main module, which is t
 		for j in mods:
 			if j.name==i.name: break
 		if not j.name==i.name: die("Error when compiling Cython code. Cannot find module in the mods list with name "+str(i.name))
-		valid=[k for k in i.sources if path.relpath(k).startswith(j.name)]
+		valid=tuple(k for k in i.sources if path.relpath(k).startswith(j.name))
 		if len(valid)!=1: die("Error with sources for "+str(i)+". Can't decide which one to use. ", valid)
 		src=path.abspath(valid[0])
 		cfiles.append(src)
@@ -696,6 +696,33 @@ def main(main_module: "The package or module name of the main module, which is t
 		data=data.replace("PyInit_"+name, names[realname])
 		say_anything("Replaced PyInit_"+name+" with "+names[realname])
 		with open(i.cfile, "w", encoding=encoding) as f: f.write(data)
+	dist=Distribution()
+	cmd=build_ext(dist)
+	cmd.finalize_options()
+	#This modified code snippet was taken from distutils.command.build_ext.run
+	if not ccompiler: ccompiler=cmd.compiler
+	com=new_compiler(compiler=ccompiler, verbose=verbose>=3)
+	customize_compiler(com)
+	if cmd.include_dirs is not None:
+		com.set_include_dirs(cmd.include_dirs)
+	if cmd.define is not None:
+		for (name, value) in cmd.define:
+			com.define_macro(name, value)
+	if cmd.undef is not None:
+		for macro in cmd.undef:
+			com.undefine_macro(macro)
+	if cmd.libraries is not None:
+		com.set_libraries(cmd.libraries)
+	if cmd.library_dirs is not None:
+		com.set_library_dirs(cmd.library_dirs)
+	if cmd.rpath is not None:
+		com.set_runtime_library_dirs(cmd.rpath)
+	if cmd.link_objects is not None:
+		com.set_link_objects(cmd.link_objects)
+
+
+
+
 	try: objs=com.compile(cfiles, extra_postargs=extra_compile_args)
 	except Exception as e:
 		input(e)
